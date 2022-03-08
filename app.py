@@ -9,63 +9,63 @@ from database.handler import DbHandler
 from schema import schema
 
 
-def getUser():
-    try:
-        settings = click.open_file(".config/settings.config", "r")
-    except FileNotFoundError:
-        click.secho("user not set, please run config command first", fg="red")
-        exit()
-    currentUser = json.loads(settings.read())
-    return int(currentUser["id"]), currentUser["email"] 
+# def getUser():
+#     try:
+#         settings = click.open_file(".config/settings.config", "r")
+#     except FileNotFoundError:
+#         click.secho("user not set, please run config command first", fg="red")
+#         exit()
+#     currentUser = json.loads(settings.read())
+#     return int(currentUser["id"]), currentUser["email"] 
 
 
-def checkUser(ctx, param, value):
-    crud = CrudUser()
-    with DbHandler() as db:
-        dbUser = crud.readUserByName(db, value)
-        if not dbUser:
-            payload = schema.User(
-                email = value.upper()
-            )            
-            crud.createUser(db, payload)
-            click.secho("new user created", fg="green")
-    return value
+# def checkUser(ctx, param, value):
+#     crud = CrudUser()
+#     with DbHandler() as db:
+#         dbUser = crud.readUserByName(db, value)
+#         if not dbUser:
+#             payload = schema.User(
+#                 email = value.upper()
+#             )            
+#             crud.createUser(db, payload)
+#             click.secho("new user created", fg="green")
+#     return value
 
 
-def checkCategory(ctx, param, value):
-    crud = CrudCategory()
-    with DbHandler() as db:
-        dbCategory = crud.readCategoryByName(db, value)
-        if dbCategory:
-            raise click.BadParameter("category already exists")   
-    return value
+# def checkCategory(ctx, param, value):
+#     crud = CrudCategory()
+#     with DbHandler() as db:
+#         dbCategory = crud.readCategoryByName(db, value)
+#         if dbCategory:
+#             raise click.BadParameter("category already exists")   
+#     return value
 
 
-def checkNotCategory(ctx, param, value):
-    crud = CrudCategory()
-    with DbHandler() as db:
-        dbCategory = crud.readCategoryByName(db, value)
-        if not dbCategory:
-            raise click.BadParameter("category not found")  
-    return value
+# def checkNotCategory(ctx, param, value):
+#     crud = CrudCategory()
+#     with DbHandler() as db:
+#         dbCategory = crud.readCategoryByName(db, value)
+#         if not dbCategory:
+#             raise click.BadParameter("category not found")  
+#     return value
 
 
-def checkCourse(ctx, param, value):
-    crud = CrudCourse()
-    with DbHandler() as db:
-        dbCourse = crud.readCourseByName(db, value)
-        if dbCourse:
-            raise click.BadParameter("course already exists")    
-    return value
+# def checkCourse(ctx, param, value):
+#     crud = CrudCourse()
+#     with DbHandler() as db:
+#         dbCourse = crud.readCourseByName(db, value)
+#         if dbCourse:
+#             raise click.BadParameter("course already exists")    
+#     return value
 
 
-def checkNotCourse(ctx, param, value):
-    crud = CrudCourse()
-    with DbHandler() as db:
-        dbCourse = crud.readCourseByName(db, value)
-        if not dbCourse:
-            raise click.BadParameter("course not found")
-    return value
+# def checkNotCourse(ctx, param, value):
+#     crud = CrudCourse()
+#     with DbHandler() as db:
+#         dbCourse = crud.readCourseByName(db, value)
+#         if not dbCourse:
+#             raise click.BadParameter("course not found")
+#     return value
 
 
 @click.group()
@@ -84,7 +84,7 @@ def createCategory(ctx, param, value):
         dbCategory = crud.readCategoryByName(db, category)
         if dbCategory:
             click.secho("category already exists", fg="red")
-            ctx.exit()   
+            ctx.abort()   
     
     payload = schema.Category(name=category)
     with DbHandler() as db:
@@ -96,37 +96,116 @@ def createCategory(ctx, param, value):
     ctx.exit()
 
 
+def deleteCategory(ctx, param, value):
+
+    if not value or ctx.resilient_parsing:
+        return
+    
+    category = click.prompt("Category", type=str)
+    crud = CrudCategory()
+    with DbHandler() as db:
+        dbCategory = crud.readCategoryByName(db, category)
+        if not dbCategory:
+            click.secho("Category not found", fg="red")
+            ctx.abort()
+        if click.confirm('Are you sure?', abort=True):
+            crud.deleteCategory(db, dbCategory)
+            click.secho("Category deleted", fg="green")
+        ctx.exit()
+
+
 @main.command()
-@click.option("--new", "-n", is_flag=True, callback=createCategory)
+@click.option("--new", is_flag=True, callback=createCategory, 
+                expose_value=False)
+@click.option("--delete", is_flag=True, callback=deleteCategory, 
+                expose_value=False)
 def category():
+    crud = CrudCategory()
+    with DbHandler() as db:
+        dbCategories = crud.readCategories(db)
+        listCategories = []
+        for category in dbCategories:
+          listCategories.append(schema.Category.from_orm(category).dict())   
+
+    if len(listCategories) == 0:
+        click.secho("Categories not found", fg="red")
+        exit()
+
+    df = pd.json_normalize(listCategories)
+    df.name = df.name.apply(lambda x: x.title())
+    df.rename(str.title, axis="columns", inplace=True)
+    click.echo(tabulate(df, headers="keys", showindex=False
+                        ,tablefmt="simple"))
+
+
+
+def createCourse(ctx, param, value):
+
+    if not value or ctx.resilient_parsing:
+        return
+
+    course = click.prompt("Course", type=str)
+    subscribed = click.prompt("Subscribed on", type=date, default=date.today())
+    crud = CrudCourse()
+    with DbHandler() as db:
+        dbCourse = crud.readCourseByName(db, course)
+        if dbCourse:
+            click.secho("Course already exists", fg="red")
+            ctx.abort()   
+    
+    ctx.abort()
+    payload = schema.Course(
+        name = course,
+        category_id = categoryID,
+        user_id = userID,
+        subscribed_on = subscribed,
+        conclusion_on = conclusion,
+    )
+    with DbHandler() as db:
+        crud.createCourse(db, payload)
+        click.secho("New course created", fg="green")
+        dbCourse = crud.readCourseByName(db, course)
+        click.secho("Name: ", fg="blue", bold=True, nl=None)
+        click.echo(f"{dbCourse.name.title()}")
+    ctx.exit()
+
+
+
+@main.command()
+@click.option("--new", is_flag=True, callback=createCourse, 
+                expose_value=False)
+def course() :
     pass
-#     crud = CrudCategory()
-#     payload = schema.Category(name=name)
-#     with DbHandler() as db:
-#         crud.createCategory(db, payload)
-#         click.secho("New category created", fg="green")
-#         dbCategory = crud.readCategoryByName(db, name)
-#         click.secho("Name: ", fg="blue", bold=True, nl=None)
-#         click.echo(f"{dbCategory.name.title()}")
+    # crud = CrudCourse()
+    # with DbHandler() as db:
+    #     dbCourses = crud.readCourses(db, userID)
+    #     listCourses = []
+    #     for course in dbCourses:
+    #         listCourses.append(schema.Course.from_orm(course).dict()) 
+    
+    # if len(listCourses) == 0:
+    #     click.secho("no courses subscribed", fg="red")
+    #     exit()
 
-
-# @main.command()
-# @click.option("--name", prompt=True, type=str, is_eager=True,
-#                 callback=checkCourse)
-# @click.option("--category", prompt=True, type=str, 
-#                 callback=checkNotCategory)
-# @click.option("--subscribed", prompt=True, default=date.today)
-# @click.option("--conclusion", prompt=True)
-# def course(name, category, subscribed, conclusion) :
-
-#     userID, userEmail = getUser()
-#     crud = CrudUser()
-#     with DbHandler() as db:
-#         dbUser = crud.readUserByID(db, userID)
-#         if not dbUser:
-#             click.secho("user not found, please run config command first",
-#                         fg="red")
-#             exit()
+    # df = pd.json_normalize(listCourses)
+    # df.rename(columns={"category.name": "category",
+    #                     "user.id": "user"}, inplace=True)
+    # df.rename(str.title, axis="columns", inplace=True)
+    # df.drop("Category.Id", inplace=True, axis=1)
+    # df.Category = df.Category.apply(lambda x: x.title())
+    # df.Name = df.Name.apply(lambda x: x.title())
+    # df = df.reindex(columns=["Id", "Name", "Category", "Subscribed_On",
+    #                         "Conclusion_On"])
+    # click.echo(tabulate(df, headers="keys", showindex=False
+    #                     ,tablefmt="simple"))
+    # userID, userEmail = getUser()
+    # crud = CrudUser()
+    # with DbHandler() as db:
+    #     dbUser = crud.readUserByID(db, userID)
+    #     if not dbUser:
+    #         click.secho("user not found, please run config command first",
+    #                     fg="red")
+    #         exit()
 
 #     crud = CrudCategory()
 #     with DbHandler() as db:
@@ -191,15 +270,22 @@ def deleteUser(ctx, param, value):
         return
     
     user = click.prompt("User", type=str)
+    crud = CrudSession()
+    with DbHandler() as db:
+        dbSession = crud.readActiveSession(db)
+        userCurrentSession = dbSession.user_id
     crud = CrudUser()
     with DbHandler() as db:
         dbUser = crud.readUserByName(db, user)
         if not dbUser:
-            click.secho("user not found", fg="red")
-            ctx.exit()
-        if click.confirm('are you sure?', abort=True):
+            click.secho("User not found", fg="red")
+            ctx.abort()
+        if dbUser.id == userCurrentSession:
+            click.secho("User has an active session", fg="red")
+            ctx.abort()
+        if click.confirm('Are you sure?', abort=True):
             crud.deleteUser(db, dbUser)
-            click.secho("user deleted", fg="green")
+            click.secho("User deleted", fg="green")
         ctx.exit()
 
 
@@ -213,20 +299,20 @@ def createUser(ctx, param, value):
     with DbHandler() as db:
         dbUser = crud.readUserByName(db, user)
         if dbUser:
-            click.secho("user already created")
-            ctx.exit()
+            click.secho("User already created")
+            ctx.abort()
         payload = schema.User(
             email = user.upper()
         )            
         crud.createUser(db, payload)
-        click.secho("new user created", fg="green")
+        click.secho("New user created", fg="green")
     ctx.exit()
 
 
 @main.command()
-@click.option("--new", "-n", is_flag=True, callback=createUser,
+@click.option("--new", is_flag=True, callback=createUser,
                 expose_value=False)
-@click.option("--delete", "-d", is_flag=True, callback=deleteUser,
+@click.option("--delete", is_flag=True, callback=deleteUser,
                 expose_value=False)
 def user():
     crud = CrudUser()
@@ -237,7 +323,7 @@ def user():
           listUsers.append(schema.User.from_orm(user).dict())   
 
     if len(listUsers) == 0:
-        click.secho("users not found", fg="red")
+        click.secho("Users not found", fg="red")
         exit()
 
     df = pd.json_normalize(listUsers)
