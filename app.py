@@ -145,7 +145,7 @@ def createCourse(ctx, param, value):
         return
 
     course = click.prompt("Course", type=str)
-    subscribed = click.prompt("Subscribed on", type=date, default=date.today())
+    subscribed = click.prompt("Subscribed on", default=date.today())
     crud = CrudCourse()
     with DbHandler() as db:
         dbCourse = crud.readCourseByName(db, course)

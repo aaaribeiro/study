@@ -62,6 +62,12 @@ class CrudCategory:
         db.commit()
 
 
+    def deleteCategory(self, db: Session, payload: Categories):
+        db.delete(payload)
+        db.commit()
+
+
+
 class CrudUser:
 
     def readUserByID(self, db: Session, id: int):
