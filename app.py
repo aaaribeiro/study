@@ -1,71 +1,13 @@
+from os import name
 import click
 import pandas as pd
 import json
 from tabulate import tabulate
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 from database.crud import CrudCategory, CrudCourse, CrudSession, CrudUser
 from database.handler import DbHandler
 from schema import schema
-
-
-# def getUser():
-#     try:
-#         settings = click.open_file(".config/settings.config", "r")
-#     except FileNotFoundError:
-#         click.secho("user not set, please run config command first", fg="red")
-#         exit()
-#     currentUser = json.loads(settings.read())
-#     return int(currentUser["id"]), currentUser["email"] 
-
-
-# def checkUser(ctx, param, value):
-#     crud = CrudUser()
-#     with DbHandler() as db:
-#         dbUser = crud.readUserByName(db, value)
-#         if not dbUser:
-#             payload = schema.User(
-#                 email = value.upper()
-#             )            
-#             crud.createUser(db, payload)
-#             click.secho("new user created", fg="green")
-#     return value
-
-
-# def checkCategory(ctx, param, value):
-#     crud = CrudCategory()
-#     with DbHandler() as db:
-#         dbCategory = crud.readCategoryByName(db, value)
-#         if dbCategory:
-#             raise click.BadParameter("category already exists")   
-#     return value
-
-
-# def checkNotCategory(ctx, param, value):
-#     crud = CrudCategory()
-#     with DbHandler() as db:
-#         dbCategory = crud.readCategoryByName(db, value)
-#         if not dbCategory:
-#             raise click.BadParameter("category not found")  
-#     return value
-
-
-# def checkCourse(ctx, param, value):
-#     crud = CrudCourse()
-#     with DbHandler() as db:
-#         dbCourse = crud.readCourseByName(db, value)
-#         if dbCourse:
-#             raise click.BadParameter("course already exists")    
-#     return value
-
-
-# def checkNotCourse(ctx, param, value):
-#     crud = CrudCourse()
-#     with DbHandler() as db:
-#         dbCourse = crud.readCourseByName(db, value)
-#         if not dbCourse:
-#             raise click.BadParameter("course not found")
-#     return value
 
 
 @click.group()
@@ -145,123 +87,172 @@ def createCourse(ctx, param, value):
         return
 
     course = click.prompt("Course", type=str)
-    subscribed = click.prompt("Subscribed on", default=date.today())
     crud = CrudCourse()
     with DbHandler() as db:
         dbCourse = crud.readCourseByName(db, course)
         if dbCourse:
             click.secho("Course already exists", fg="red")
-            ctx.abort()   
+            ctx.abort()
     
-    ctx.abort()
-    payload = schema.Course(
+    category = click.prompt("Category", type=str)
+    crud = CrudCategory()
+    with DbHandler() as db:
+        dbCategory = crud.readCategoryByName(db, category)
+        if not dbCategory:
+            click.secho("Category not found", fg="red")
+            ctx.abort()
+        categoryID = dbCategory.id
+    
+    payload = schema.CourseToDb(
         name = course,
         category_id = categoryID,
-        user_id = userID,
-        subscribed_on = subscribed,
-        conclusion_on = conclusion,
     )
+    crud = CrudCourse()
     with DbHandler() as db:
         crud.createCourse(db, payload)
         click.secho("New course created", fg="green")
         dbCourse = crud.readCourseByName(db, course)
+        courseID = dbCourse.id
         click.secho("Name: ", fg="blue", bold=True, nl=None)
         click.echo(f"{dbCourse.name.title()}")
+
+    if click.confirm("Do you want to subscribe?"):
+        subscribed = click.prompt("Subscribed on", default=date.today())
+        conclusion = click.prompt("Conclusion on",
+                                    default=date.today() + timedelta(weeks=24))
+        crud = CrudSession()
+        with DbHandler() as db:
+            dbUser = crud.readActiveSession(db)
+            userID = dbUser.user_id
+        payload = schema.BaseSubscription(
+            course_id = courseID,
+            user_id = userID,
+            subscribed_on = subscribed,
+            conclusion_on = conclusion
+        )
+        crud = CrudCourse()
+        with DbHandler() as db:
+            crud.createSubscription(db, payload)
+            click.secho("User subscribed", fg="green")
     ctx.exit()
 
+
+def deleteCourse():
+    pass
 
 
 @main.command()
 @click.option("--new", is_flag=True, callback=createCourse, 
                 expose_value=False)
-def course() :
-    pass
-    # crud = CrudCourse()
-    # with DbHandler() as db:
-    #     dbCourses = crud.readCourses(db, userID)
-    #     listCourses = []
-    #     for course in dbCourses:
-    #         listCourses.append(schema.Course.from_orm(course).dict()) 
+@click.option("--delete", is_flag=True, callback=deleteCourse, 
+                expose_value=False)
+def course():
+    crud = CrudCourse()
+    with DbHandler() as db:
+        dbCourses = crud.readCourses(db)
+        listCourses = []
+        for course in dbCourses:
+            listCourses.append(schema.Course.from_orm(course).dict()) 
     
-    # if len(listCourses) == 0:
-    #     click.secho("no courses subscribed", fg="red")
-    #     exit()
+    if len(listCourses) == 0:
+        click.secho("Courses not found", fg="red")
+        exit()
 
-    # df = pd.json_normalize(listCourses)
-    # df.rename(columns={"category.name": "category",
-    #                     "user.id": "user"}, inplace=True)
-    # df.rename(str.title, axis="columns", inplace=True)
-    # df.drop("Category.Id", inplace=True, axis=1)
-    # df.Category = df.Category.apply(lambda x: x.title())
-    # df.Name = df.Name.apply(lambda x: x.title())
-    # df = df.reindex(columns=["Id", "Name", "Category", "Subscribed_On",
-    #                         "Conclusion_On"])
-    # click.echo(tabulate(df, headers="keys", showindex=False
-    #                     ,tablefmt="simple"))
-    # userID, userEmail = getUser()
-    # crud = CrudUser()
-    # with DbHandler() as db:
-    #     dbUser = crud.readUserByID(db, userID)
-    #     if not dbUser:
-    #         click.secho("user not found, please run config command first",
-    #                     fg="red")
-    #         exit()
-
-#     crud = CrudCategory()
-#     with DbHandler() as db:
-#         dbCategory = crud.readCategoryByName(db, category)
-#     categoryID = dbCategory.id
-
-#     crud = CrudCourse()
-#     course = schema.CourseToDb(
-#         name = name,
-#         category_id = categoryID,
-#         user_id = userID,
-#         subscribed_on = subscribed,
-#         conclusion_on = conclusion,
-#     )
-#     with DbHandler() as db:
-#         crud.createCourse(db, course)    
-#         click.secho("New course created", fg="green")
-#         dbCourse = crud.readCourseByName(db, name)
-#         click.secho("Name: ", fg="blue", bold=True, nl=None)
-#         click.echo(f"{dbCourse.name.title()}")
-#         click.secho("Category: ", fg="blue", bold=True, nl=None)
-#         click.echo(f"{dbCourse.category.name.title()}")
-#         click.secho("User: ", fg="blue", bold=True, nl=None)
-#         click.echo(f"{userEmail.lower()}")
-#         click.secho("Subscribed on: ", fg="blue", bold=True, nl=None)
-#         click.echo(f"{dbCourse.subscribed_on}")
-#         click.secho("Conclusion on: ", fg="blue", bold=True, nl=None)
-#         click.echo(f"{dbCourse.conclusion_on}")
-
-
-# @main.command()
-# def subscribed():
-#     userID = getUser()[0]
-#     crud = CrudCourse()
-#     with DbHandler() as db:
-#         dbCourses = crud.readCourses(db, userID)
-#         listCourses = []
-#         for course in dbCourses:
-#             listCourses.append(schema.Course.from_orm(course).dict()) 
+    df = pd.json_normalize(listCourses)
+    df.rename(columns={"category.name": "category"}, inplace=True)
+    df.category = df.category.apply(lambda x: x.title())
+    df.name = df.name.apply(lambda x: x.title())
+    df = df.reindex(columns=["id", "name", "category"])
+    df.rename(str.title, axis="columns", inplace=True)    
+    click.echo(tabulate(df, headers="keys", showindex=False ,tablefmt="simple"))
     
-#     if len(listCourses) == 0:
-#         click.secho("no courses subscribed", fg="red")
-#         exit()
 
-#     df = pd.json_normalize(listCourses)
-#     df.rename(columns={"category.name": "category",
-#                         "user.id": "user"}, inplace=True)
-#     df.rename(str.title, axis="columns", inplace=True)
-#     df.drop("Category.Id", inplace=True, axis=1)
-#     df.Category = df.Category.apply(lambda x: x.title())
-#     df.Name = df.Name.apply(lambda x: x.title())
-#     df = df.reindex(columns=["Id", "Name", "Category", "Subscribed_On",
-#                             "Conclusion_On"])
-#     click.echo(tabulate(df, headers="keys", showindex=False
-#                         ,tablefmt="simple"))
+
+
+def createSubscription(ctx, param, value):
+
+    if not value or ctx.resilient_parsing:
+        return
+
+    course = click.prompt("Course", type=str)
+    crud = CrudCourse()
+    with DbHandler() as db:
+        dbCourse = crud.readCourseByName(db, course)
+        if not dbCourse:
+            click.secho("Course not found", fg="red")
+            ctx.abort()
+        courseID = dbCourse.id
+    subscribed = click.prompt("Subscribed on", default=date.today())
+    conclusion = click.prompt("Conclusion on",
+                                default=date.today() + timedelta(weeks=24))
+    crud = CrudSession()
+    with DbHandler() as db:
+        dbUser = crud.readActiveSession(db)
+        userID = dbUser.user_id
+    payload = schema.BaseSubscription(
+        course_id = courseID,
+        user_id = userID,
+        subscribed_on = subscribed,
+        conclusion_on = conclusion
+    )
+    crud = CrudCourse()
+    with DbHandler() as db:
+        crud.createSubscription(db, payload)
+        click.secho("User subscribed", fg="green")
+    ctx.exit()
+
+@main.command()
+@click.option("--new", is_flag=True, callback=createSubscription, 
+                expose_value=False)
+def subscription():
+    crud = CrudSession()
+    with DbHandler() as db:
+        dbSession = crud.readActiveSession(db)
+        userID = dbSession.user_id
+
+    crud = CrudCourse()
+    with DbHandler() as db:
+        dbCourses = crud.readSubscriptions(db, userID)
+        listCourses = []
+        for course in dbCourses:
+            listCourses.append(schema.Subscription.from_orm(course).dict()) 
     
+    if len(listCourses) == 0:
+        click.secho("No courses subscribed", fg="red")
+        exit()
+
+    df = pd.json_normalize(listCourses)
+    df.rename(columns={"course.category.name": "category",
+            "user.email": "user", "course.name": "course"}, inplace=True)
+    df.course = df.course.apply(lambda x: x.title())
+    df.category = df.category.apply(lambda x: x.title())
+    df.user = df.user.apply(lambda x: x.lower())
+    df.rename(str.title, axis="columns", inplace=True)
+    df = df.reindex(columns=["User", "Course", "Category", "Subscribed_On",
+                            "Conclusion_On"])
+    click.echo(tabulate(df, headers="keys", showindex=False, tablefmt="simple"))
+    
+
+
+def createUser(ctx, param, value):
+
+    if not value or ctx.resilient_parsing:
+        return
+    
+    user = click.prompt("User", type=str)
+    crud = CrudUser()
+    with DbHandler() as db:
+        dbUser = crud.readUserByName(db, user)
+        if dbUser:
+            click.secho("User already created")
+            ctx.abort()
+        payload = schema.User(
+            email = user.upper()
+        )            
+        crud.createUser(db, payload)
+        click.secho("New user created", fg="green")
+    ctx.exit()
+
 
 
 def deleteUser(ctx, param, value):
@@ -287,26 +278,6 @@ def deleteUser(ctx, param, value):
             crud.deleteUser(db, dbUser)
             click.secho("User deleted", fg="green")
         ctx.exit()
-
-
-def createUser(ctx, param, value):
-
-    if not value or ctx.resilient_parsing:
-        return
-    
-    user = click.prompt("User", type=str)
-    crud = CrudUser()
-    with DbHandler() as db:
-        dbUser = crud.readUserByName(db, user)
-        if dbUser:
-            click.secho("User already created")
-            ctx.abort()
-        payload = schema.User(
-            email = user.upper()
-        )            
-        crud.createUser(db, payload)
-        click.secho("New user created", fg="green")
-    ctx.exit()
 
 
 @main.command()

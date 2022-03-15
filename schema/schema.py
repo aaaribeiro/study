@@ -23,10 +23,7 @@ class Course(BaseModel):
     id: Optional[int]
     name: Optional[str]
     category: Optional[Category]
-    user: Optional[User]
-    subscribed_on: Optional[date]
-    conclusion_on: Optional[date]
-
+    
     class Config:
         orm_mode = True
 
@@ -35,9 +32,6 @@ class CourseToDb(BaseModel):
     id: Optional[int]
     name: Optional[str]
     category_id: Optional[int]
-    user_id: Optional[int]
-    subscribed_on: Optional[date]
-    conclusion_on: Optional[date]
 
     class Config:
         orm_mode = True
@@ -48,6 +42,26 @@ class Session(BaseModel):
     user_id: Optional[int]
     opened_on: Optional[datetime]
     is_active: Optional[bool]
+
+    class Config:
+        orm_mode = True
+
+
+class BaseSubscription(BaseModel):
+    course_id: Optional[int]
+    user_id: Optional[int]
+    subscribed_on: Optional[date]
+    conclusion_on: Optional[date]
+
+    class Config:
+        orm_mode = True
+
+
+class Subscription(BaseModel):
+    course: Optional[Course]
+    user: Optional[User]
+    subscribed_on: Optional[date]
+    conclusion_on: Optional[date]
 
     class Config:
         orm_mode = True

@@ -15,8 +15,8 @@ class Sessions(Base):
 
 class Subscriptions(Base):
     __tablename__ = "subscription"
-    course_id = Column(ForeignKey('course.id'), primary_key=True)
-    user_id = Column(ForeignKey('user.id'), primary_key=True)
+    course_id = Column(ForeignKey('course.id'))
+    user_id = Column(ForeignKey('user.id'))
     subscribed_on = Column(Date)
     conclusion_on = Column(Date)
     course = relationship("Courses", back_populates="users")

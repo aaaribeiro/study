@@ -1,7 +1,7 @@
 # from sqlalchemy import or_, and_
 from sqlalchemy.orm import Session
 
-from database.models import Courses, Categories, Sessions, Users
+from database.models import Courses, Categories, Sessions, Users, Subscriptions
 from schema import schema
 from database.db import SessionLocal, engine, Base
 
@@ -18,17 +18,14 @@ class CrudCourse:
             filter(Courses.name==name.upper()).first()
 
 
-    def readCourses(self, db: Session, user: int):
-        return db.query(Courses).filter(Courses.user_id==user).all()
+    def readCourses(self, db: Session):
+        return db.query(Courses).all()
 
 
     def createCourse(self, db: Session, payload: schema.CourseToDb):
         dbCourse = Courses(
             name = payload.name.upper(),
             category_id = payload.category_id,
-            user_id = payload.user_id,
-            subscribed_on = payload.subscribed_on,
-            conclusion_on = payload.conclusion_on,         
         )
         db.add(dbCourse)
         db.commit()
@@ -36,6 +33,22 @@ class CrudCourse:
 
     def deleteCourse(self, db: Session, payload: Courses):
         db.delete(payload)
+        db.commit()
+
+
+    def readSubscriptions(self, db: Session, user_id: int):
+        return db.query(Subscriptions).\
+            filter(Subscriptions.user_id==user_id).all()
+
+
+    def createSubscription(self, db: Session, payload: schema.BaseSubscription):
+        dbSubscription = Subscriptions(
+            course_id = payload.course_id,
+            user_id = payload.user_id,
+            subscribed_on = payload.subscribed_on,
+            conclusion_on = payload.conclusion_on
+        ) 
+        db.add(dbSubscription)
         db.commit()
 
 
