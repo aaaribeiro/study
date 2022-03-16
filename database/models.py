@@ -15,6 +15,7 @@ class Sessions(Base):
 
 class Subscriptions(Base):
     __tablename__ = "subscription"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     course_id = Column(ForeignKey('course.id'))
     user_id = Column(ForeignKey('user.id'))
     subscribed_on = Column(Date)

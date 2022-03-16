@@ -1,9 +1,9 @@
-# from sqlalchemy import or_, and_
+from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from database.models import Courses, Categories, Sessions, Users, Subscriptions
 from schema import schema
-from database.db import SessionLocal, engine, Base
+from database.db import engine, Base
 
 Base.metadata.create_all(engine)
 
@@ -41,6 +41,17 @@ class CrudCourse:
             filter(Subscriptions.user_id==user_id).all()
 
 
+    def readSubscriptionByCourse(self, db: Session, user_id: int, course_id: int):
+        return db.query(Subscriptions).\
+            filter(and_(Subscriptions.user_id==user_id,
+                        Subscriptions.course_id==course_id)).first()
+    
+
+    def readCourseSubscription(self, db: Session, course_id: int):
+        return db.query(Subscriptions).\
+            filter(Subscriptions.course_id==course_id).all()
+
+
     def createSubscription(self, db: Session, payload: schema.BaseSubscription):
         dbSubscription = Subscriptions(
             course_id = payload.course_id,
@@ -52,6 +63,12 @@ class CrudCourse:
         db.commit()
 
 
+    def deleteSubscription(self, db: Session, payload: Subscriptions):
+        db.delete(payload)
+        db.commit()
+
+
+
 class CrudCategory:
 
     def readCategoryByID(self, db: Session, id: int):
@@ -61,6 +78,11 @@ class CrudCategory:
     def readCategoryByName(self, db: Session, name: str):
         return db.query(Categories).\
             filter(Categories.name==name.upper()).first()
+
+
+    def readCoursesByCategory(self, db:Session, id: int):
+        return db.query(Courses).\
+            filter(Courses.category_id==id).all()
 
 
     def readCategories(self, db: Session):
@@ -90,6 +112,11 @@ class CrudUser:
     def readUserByName(self, db: Session, email: str):
         return db.query(Users).\
             filter(Users.email==email.upper()).first()
+
+
+    def readCoursesByUser(self, db: Session, id: int):
+        return db.query(Subscriptions).\
+            filter(Subscriptions.user_id==id).all()
 
 
     def readUsers(self, db: Session):

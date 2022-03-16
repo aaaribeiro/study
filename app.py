@@ -1,7 +1,6 @@
-from os import name
+from calendar import c
 import click
 import pandas as pd
-import json
 from tabulate import tabulate
 from datetime import datetime, date, timedelta
 
@@ -49,6 +48,11 @@ def deleteCategory(ctx, param, value):
         dbCategory = crud.readCategoryByName(db, category)
         if not dbCategory:
             click.secho("Category not found", fg="red")
+            ctx.abort()
+        categoryID = dbCategory.id
+        dbCourses = crud.readCoursesByCategory(db, categoryID)
+        if dbCourses:
+            click.secho("Course assigned to course", fg="red")
             ctx.abort()
         if click.confirm('Are you sure?', abort=True):
             crud.deleteCategory(db, dbCategory)
@@ -137,9 +141,27 @@ def createCourse(ctx, param, value):
     ctx.exit()
 
 
-def deleteCourse():
-    pass
+def deleteCourse(ctx, param, value):
 
+    if not value or ctx.resilient_parsing:
+        return
+
+    course = click.prompt("Course", type=str)
+    crud = CrudCourse()
+    with DbHandler() as db:
+        dbCourse = crud.readCourseByName(db, course)
+        if not dbCourse:
+            click.secho("Course not found", fg="red")
+            ctx.abort()
+        courseID = dbCourse.id
+        dbSubscriptions = crud.readCourseSubscription(db, courseID)
+        if dbSubscriptions:
+            click.secho("Course has users subscribed", fg="red")
+            ctx.abort()
+        if click.confirm('Are you sure?', abort=True):
+            crud.deleteCourse(db, dbCourse)
+            click.secho("Course delete", fg="green")
+    ctx.exit()
 
 @main.command()
 @click.option("--new", is_flag=True, callback=createCourse, 
@@ -201,8 +223,45 @@ def createSubscription(ctx, param, value):
         click.secho("User subscribed", fg="green")
     ctx.exit()
 
+
+def deleteSubscription(ctx, param, value):
+
+    if not value or ctx.resilient_parsing:
+        return
+    
+    course = click.prompt("Course", type=str)
+    crud = CrudCourse()
+    with DbHandler() as db:
+        dbCourse = crud.readCourseByName(db, course)
+        if not dbCourse:
+            click.secho("Course not found", fg="red")
+            ctx.abort()
+        courseID = dbCourse.id
+    
+    crud = CrudSession()
+    with DbHandler() as db:
+        dbSession = crud.readActiveSession(db)
+        if not dbSession:
+            click.secho("User not active", fg="red")
+            ctx.abort()
+        userID = dbSession.user_id
+    
+    if click.confirm('Are you sure?', abort=True):
+        crud = CrudCourse()
+        with DbHandler() as db:
+            dbSubscription = crud.readSubscriptionByCourse(db, userID, courseID)
+            if not dbSubscription:
+                click.secho("User not subscribed in this course", fg="red")
+                ctx.abort()
+            crud.deleteSubscription(db, dbSubscription)
+            click.secho("Subscription deleted", fg="green")
+    ctx.exit()
+
+
 @main.command()
 @click.option("--new", is_flag=True, callback=createSubscription, 
+                expose_value=False)
+@click.option("--delete", is_flag=True, callback=deleteSubscription, 
                 expose_value=False)
 def subscription():
     crud = CrudSession()
@@ -264,15 +323,23 @@ def deleteUser(ctx, param, value):
     crud = CrudSession()
     with DbHandler() as db:
         dbSession = crud.readActiveSession(db)
-        userCurrentSession = dbSession.user_id
+        try:
+            userCurrentSession = dbSession.user_id
+        except AttributeError:
+            userCurrentSession = 0
     crud = CrudUser()
     with DbHandler() as db:
         dbUser = crud.readUserByName(db, user)
         if not dbUser:
             click.secho("User not found", fg="red")
             ctx.abort()
-        if dbUser.id == userCurrentSession:
+        userID = dbUser.id
+        if userID == userCurrentSession:
             click.secho("User has an active session", fg="red")
+            ctx.abort()
+        dbSubscriptions = crud.readCoursesByUser(db, userID)
+        if dbSubscriptions:
+            click.secho("User has courses subscribed", fg="red")
             ctx.abort()
         if click.confirm('Are you sure?', abort=True):
             crud.deleteUser(db, dbUser)
