@@ -14,11 +14,21 @@ def main():
     pass
 
 
+def checkUser():
+    crud = CrudSession()
+    with DbHandler() as db:
+        session = crud.readActiveSession(db)
+        if not session:
+            click.secho("No user logged, please log in", fg="red")
+            exit()   
+    
+
 def createCategory(ctx, param, value):
 
     if not value or ctx.resilient_parsing:
         return
 
+    checkUser()
     category = click.prompt("Category", type=str)
     crud = CrudCategory()
     with DbHandler() as db:
@@ -42,6 +52,7 @@ def deleteCategory(ctx, param, value):
     if not value or ctx.resilient_parsing:
         return
     
+    checkUser()
     category = click.prompt("Category", type=str)
     crud = CrudCategory()
     with DbHandler() as db:
@@ -66,6 +77,8 @@ def deleteCategory(ctx, param, value):
 @click.option("--delete", is_flag=True, callback=deleteCategory, 
                 expose_value=False)
 def category():
+
+    checkUser()
     crud = CrudCategory()
     with DbHandler() as db:
         dbCategories = crud.readCategories(db)
@@ -89,7 +102,8 @@ def createCourse(ctx, param, value):
 
     if not value or ctx.resilient_parsing:
         return
-
+   
+    checkUser()
     course = click.prompt("Course", type=str)
     crud = CrudCourse()
     with DbHandler() as db:
@@ -146,6 +160,7 @@ def deleteCourse(ctx, param, value):
     if not value or ctx.resilient_parsing:
         return
 
+    checkUser()  
     course = click.prompt("Course", type=str)
     crud = CrudCourse()
     with DbHandler() as db:
@@ -169,6 +184,8 @@ def deleteCourse(ctx, param, value):
 @click.option("--delete", is_flag=True, callback=deleteCourse, 
                 expose_value=False)
 def course():
+    
+    checkUser()
     crud = CrudCourse()
     with DbHandler() as db:
         dbCourses = crud.readCourses(db)
@@ -190,12 +207,12 @@ def course():
     
 
 
-
 def createSubscription(ctx, param, value):
 
     if not value or ctx.resilient_parsing:
         return
 
+    checkUser()
     course = click.prompt("Course", type=str)
     crud = CrudCourse()
     with DbHandler() as db:
@@ -229,6 +246,7 @@ def deleteSubscription(ctx, param, value):
     if not value or ctx.resilient_parsing:
         return
     
+    checkUser()
     course = click.prompt("Course", type=str)
     crud = CrudCourse()
     with DbHandler() as db:
@@ -264,6 +282,8 @@ def deleteSubscription(ctx, param, value):
 @click.option("--delete", is_flag=True, callback=deleteSubscription, 
                 expose_value=False)
 def subscription():
+
+    checkUser()
     crud = CrudSession()
     with DbHandler() as db:
         dbSession = crud.readActiveSession(db)
