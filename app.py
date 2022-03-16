@@ -20,7 +20,9 @@ def checkUser():
         session = crud.readActiveSession(db)
         if not session:
             click.secho("No user logged, please log in", fg="red")
-            exit()   
+            exit()
+        userID = session.user_id
+    return userID   
     
 
 def createCategory(ctx, param, value):
@@ -103,7 +105,7 @@ def createCourse(ctx, param, value):
     if not value or ctx.resilient_parsing:
         return
    
-    checkUser()
+    userID = checkUser()
     course = click.prompt("Course", type=str)
     crud = CrudCourse()
     with DbHandler() as db:
@@ -138,10 +140,10 @@ def createCourse(ctx, param, value):
         subscribed = click.prompt("Subscribed on", default=date.today())
         conclusion = click.prompt("Conclusion on",
                                     default=date.today() + timedelta(weeks=24))
-        crud = CrudSession()
-        with DbHandler() as db:
-            dbUser = crud.readActiveSession(db)
-            userID = dbUser.user_id
+        # crud = CrudSession()
+        # with DbHandler() as db:
+        #     dbUser = crud.readActiveSession(db)
+        #     userID = dbUser.user_id
         payload = schema.BaseSubscription(
             course_id = courseID,
             user_id = userID,
@@ -212,7 +214,7 @@ def createSubscription(ctx, param, value):
     if not value or ctx.resilient_parsing:
         return
 
-    checkUser()
+    userID = checkUser()
     course = click.prompt("Course", type=str)
     crud = CrudCourse()
     with DbHandler() as db:
@@ -224,10 +226,10 @@ def createSubscription(ctx, param, value):
     subscribed = click.prompt("Subscribed on", default=date.today())
     conclusion = click.prompt("Conclusion on",
                                 default=date.today() + timedelta(weeks=24))
-    crud = CrudSession()
-    with DbHandler() as db:
-        dbUser = crud.readActiveSession(db)
-        userID = dbUser.user_id
+    # crud = CrudSession()
+    # with DbHandler() as db:
+    #     dbUser = crud.readActiveSession(db)
+    #     userID = dbUser.user_id
     payload = schema.BaseSubscription(
         course_id = courseID,
         user_id = userID,
@@ -246,7 +248,7 @@ def deleteSubscription(ctx, param, value):
     if not value or ctx.resilient_parsing:
         return
     
-    checkUser()
+    userID = checkUser()
     course = click.prompt("Course", type=str)
     crud = CrudCourse()
     with DbHandler() as db:
@@ -256,13 +258,13 @@ def deleteSubscription(ctx, param, value):
             ctx.abort()
         courseID = dbCourse.id
     
-    crud = CrudSession()
-    with DbHandler() as db:
-        dbSession = crud.readActiveSession(db)
-        if not dbSession:
-            click.secho("User not active", fg="red")
-            ctx.abort()
-        userID = dbSession.user_id
+    # crud = CrudSession()
+    # with DbHandler() as db:
+    #     dbSession = crud.readActiveSession(db)
+    #     if not dbSession:
+    #         click.secho("User not active", fg="red")
+    #         ctx.abort()
+    #     userID = dbSession.user_id
     
     if click.confirm('Are you sure?', abort=True):
         crud = CrudCourse()
@@ -283,11 +285,11 @@ def deleteSubscription(ctx, param, value):
                 expose_value=False)
 def subscription():
 
-    checkUser()
-    crud = CrudSession()
-    with DbHandler() as db:
-        dbSession = crud.readActiveSession(db)
-        userID = dbSession.user_id
+    userID = checkUser()
+    # crud = CrudSession()
+    # with DbHandler() as db:
+    #     dbSession = crud.readActiveSession(db)
+    #     userID = dbSession.user_id
 
     crud = CrudCourse()
     with DbHandler() as db:
@@ -448,6 +450,7 @@ def logoff(ctx, param, value):
 @click.option("--login", is_flag=True, callback=login, expose_value=False)
 @click.option("--logoff", is_flag=True, callback=logoff, expose_value=False)
 def session():
+    
     crud = CrudSession()
     with DbHandler() as db:
         dbSession = crud.readActiveSession(db)
