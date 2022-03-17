@@ -13,6 +13,19 @@ class Sessions(Base):
     user = relationship("Users", back_populates="sessions") 
 
 
+class StudySession(Base):
+    __tablename__ = "studysession"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    subscription_id = Column(ForeignKey('subscription.id'))
+    start_session = Column(DateTime)
+    end_session = Column(DateTime)
+    subscription = relationship("Subscriptions", back_populates="study_sessions") 
+
+    @property
+    def time_session(self):
+        return self.end_session - self.start_session
+
+
 class Subscriptions(Base):
     __tablename__ = "subscription"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
@@ -22,6 +35,7 @@ class Subscriptions(Base):
     conclusion_on = Column(Date)
     course = relationship("Courses", back_populates="users")
     user = relationship("Users", back_populates="courses")
+    study_sessions = relationship("StudySession", back_populates="subscription")
 
 
 class Courses(Base):

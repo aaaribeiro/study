@@ -1,10 +1,11 @@
+from ast import Sub
 from calendar import c
 import click
 import pandas as pd
 from tabulate import tabulate
 from datetime import datetime, date, timedelta
 
-from database.crud import CrudCategory, CrudCourse, CrudSession, CrudUser
+from database.crud import CrudCategory, CrudCourse, CrudSession, CrudUser, CrudStudy
 from database.handler import DbHandler
 from schema import schema
 
@@ -25,8 +26,140 @@ def checkUser():
     return userID   
     
 
-def createCategory(ctx, param, value):
+def createStudySession(ctx, param, value):
+    if not value or ctx.resilient_parsing:
+        return
+    
+    userID = checkUser()
+    course = click.prompt("Course", type=str)
+    crud = CrudCourse()
+    with DbHandler() as db:
+        dbCourse = crud.readCourseByName(db, course)
+        if not dbCourse:    
+            click.secho("Course not found", fg="red")
+            ctx.abort()
+        courseID = dbCourse.id 
+        dbSubscription = crud.readSubscriptionByCourse(db, userID, courseID)
+        if not dbSubscription:
+            click.secho("Subscription not found", fg="red")
+            ctx.abort()
+        subscriptionID = dbSubscription.id
+    startSession = datetime.now()
+    click.secho(f"{startSession}: ", fg="blue", nl=None)
+    click.echo("Session started")
+    click.pause()
+    endSession = datetime.now()
+    click.secho(f"{endSession}: ", fg="blue", nl=None)
+    click.echo("Session closed")
 
+    payload = schema.BaseStudySession(
+        subscription_id = subscriptionID,
+        start_session = startSession,
+        end_session = endSession
+     )
+    crud = CrudStudy()
+    with DbHandler() as db:
+        crud.createStudySession(db, payload)
+    click.secho("Study session saved", fg="green")
+    ctx.exit()
+
+
+
+def getReport(ctx, param, value):
+    if not value or ctx.resilient_parsing:
+        return
+
+    userID = checkUser()
+    course = click.prompt("Course", type=str)
+    crud = CrudCourse()
+    with DbHandler() as db:
+        dbCourse = crud.readCourseByName(db, course)
+        if not dbCourse:    
+            click.secho("Course not found", fg="red")
+            click.echo("Abort!")
+            exit()
+        courseID = dbCourse.id 
+        dbSubscription = crud.readSubscriptionByCourse(db, userID, courseID)
+        if not dbSubscription:
+            click.secho("Subscription not found", fg="red")
+            click.echo("Abort!")
+            exit()
+        subscriptionID = dbSubscription.id
+    crud = CrudStudy()
+    with DbHandler() as db:
+        dbStudySessions = crud.readStudySessions(db, subscriptionID)
+        listStudySessions = []
+        for studySession in dbStudySessions:
+            listStudySessions.append(
+                            schema.StudySession.from_orm(studySession).dict())
+            
+    if len(listStudySessions) == 0:
+        click.secho("Study sessions not found", fg="red")
+        exit()
+
+    df = pd.json_normalize(listStudySessions)
+    df.rename(columns={"subscription.course.name": "course"}, inplace=True)
+    df.course = df.course.apply(lambda x: x.title())
+    df = df.reindex(columns=["course", "time_session"])
+    df = df.groupby(["course"], as_index=False).sum().astype(str)
+    df.rename(str.title, axis="columns", inplace=True)    
+    click.echo(tabulate(df, headers="keys", showindex=False
+                        ,tablefmt="simple"))
+    ctx.exit()
+
+
+@main.command()
+@click.option("--report", is_flag=True, callback=getReport, 
+                expose_value=False)
+@click.option("--new", is_flag=True, callback=createStudySession, 
+                expose_value=False)
+# @click.option("--delete", is_flag=True, callback=deleteStudySession, 
+#                 expose_value=False)
+def study():
+
+    userID = checkUser()
+    course = click.prompt("Course", type=str)
+    crud = CrudCourse()
+    with DbHandler() as db:
+        dbCourse = crud.readCourseByName(db, course)
+        if not dbCourse:    
+            click.secho("Course not found", fg="red")
+            click.echo("Abort!")
+            exit()
+        courseID = dbCourse.id 
+        dbSubscription = crud.readSubscriptionByCourse(db, userID, courseID)
+        if not dbSubscription:
+            click.secho("Subscription not found", fg="red")
+            click.echo("Abort!")
+            exit()
+        subscriptionID = dbSubscription.id
+    crud = CrudStudy()
+    with DbHandler() as db:
+        dbStudySessions = crud.readStudySessions(db, subscriptionID)
+        listStudySessions = []
+        for studySession in dbStudySessions:
+            listStudySessions.append(
+                            schema.StudySession.from_orm(studySession).dict())
+            
+    if len(listStudySessions) == 0:
+        click.secho("Study sessions not found", fg="red")
+        exit()
+
+    df = pd.json_normalize(listStudySessions)
+    df.rename(columns={"subscription.course.name": "course", 
+        "subscription.user.email": "user"}, inplace=True)
+    df.course = df.course.apply(lambda x: x.title())
+    df.user = df.user.apply(lambda x: x.lower())
+    df = df.reindex(columns=["id", "user", "course", "start_session",
+        "end_session", "time_session"])
+    df.rename(str.title, axis="columns", inplace=True)    
+    click.echo(tabulate(df, headers="keys", showindex=False
+                        ,tablefmt="simple"))
+
+
+
+
+def createCategory(ctx, param, value):
     if not value or ctx.resilient_parsing:
         return
 
@@ -140,10 +273,7 @@ def createCourse(ctx, param, value):
         subscribed = click.prompt("Subscribed on", default=date.today())
         conclusion = click.prompt("Conclusion on",
                                     default=date.today() + timedelta(weeks=24))
-        # crud = CrudSession()
-        # with DbHandler() as db:
-        #     dbUser = crud.readActiveSession(db)
-        #     userID = dbUser.user_id
+
         payload = schema.BaseSubscription(
             course_id = courseID,
             user_id = userID,
@@ -226,10 +356,7 @@ def createSubscription(ctx, param, value):
     subscribed = click.prompt("Subscribed on", default=date.today())
     conclusion = click.prompt("Conclusion on",
                                 default=date.today() + timedelta(weeks=24))
-    # crud = CrudSession()
-    # with DbHandler() as db:
-    #     dbUser = crud.readActiveSession(db)
-    #     userID = dbUser.user_id
+
     payload = schema.BaseSubscription(
         course_id = courseID,
         user_id = userID,
@@ -257,15 +384,7 @@ def deleteSubscription(ctx, param, value):
             click.secho("Course not found", fg="red")
             ctx.abort()
         courseID = dbCourse.id
-    
-    # crud = CrudSession()
-    # with DbHandler() as db:
-    #     dbSession = crud.readActiveSession(db)
-    #     if not dbSession:
-    #         click.secho("User not active", fg="red")
-    #         ctx.abort()
-    #     userID = dbSession.user_id
-    
+        
     if click.confirm('Are you sure?', abort=True):
         crud = CrudCourse()
         with DbHandler() as db:
@@ -286,11 +405,6 @@ def deleteSubscription(ctx, param, value):
 def subscription():
 
     userID = checkUser()
-    # crud = CrudSession()
-    # with DbHandler() as db:
-    #     dbSession = crud.readActiveSession(db)
-    #     userID = dbSession.user_id
-
     crud = CrudCourse()
     with DbHandler() as db:
         dbCourses = crud.readSubscriptions(db, userID)
@@ -450,7 +564,7 @@ def logoff(ctx, param, value):
 @click.option("--login", is_flag=True, callback=login, expose_value=False)
 @click.option("--logoff", is_flag=True, callback=logoff, expose_value=False)
 def session():
-    
+
     crud = CrudSession()
     with DbHandler() as db:
         dbSession = crud.readActiveSession(db)

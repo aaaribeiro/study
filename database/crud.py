@@ -1,11 +1,29 @@
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
-from database.models import Courses, Categories, Sessions, Users, Subscriptions
+from database.models import Courses, Categories, Sessions, Users, Subscriptions, StudySession
 from schema import schema
 from database.db import engine, Base
 
 Base.metadata.create_all(engine)
+
+
+class CrudStudy:
+
+    def readStudySessions(self, db: Session, id: int):
+        return db.query(StudySession).\
+            filter(StudySession.subscription_id==id).all()
+
+
+    def createStudySession(self, db: Session, payload: schema.StudySession):
+        dbStudySession = StudySession(
+            subscription_id = payload.subscription_id,
+            start_session = payload.start_session,
+            end_session = payload.end_session
+        )
+        db.add(dbStudySession)
+        db.commit()
+
 
 class CrudCourse:
 

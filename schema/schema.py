@@ -1,5 +1,5 @@
 from typing import Optional
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pydantic import BaseModel
 
 
@@ -72,6 +72,27 @@ class BaseSession(BaseModel):
     user: Optional[User]
     opened_on: Optional[datetime]
     is_active: Optional[bool]
+
+    class Config:
+        orm_mode = True
+
+
+class StudySession(BaseModel):
+    id: Optional[int]
+    subscription: Optional[Subscription]
+    start_session: Optional[datetime]
+    end_session: Optional[datetime]
+    time_session: Optional[timedelta]
+
+    class Config:
+        orm_mode = True
+
+
+class BaseStudySession(BaseModel):
+    id: Optional[int]
+    subscription_id: Optional[int]
+    start_session: Optional[datetime]
+    end_session: Optional[datetime]
 
     class Config:
         orm_mode = True
