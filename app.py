@@ -1,11 +1,11 @@
-from ast import Sub
-from calendar import c
+from email.policy import default
 import click
 import pandas as pd
 from tabulate import tabulate
 from datetime import datetime, date, timedelta
 
-from database.crud import CrudCategory, CrudCourse, CrudSession, CrudUser, CrudStudy
+from database.crud import CrudCategory, CrudCourse, CrudSession, CrudUser
+from database.crud import CrudStudy, CrudSubscription
 from database.handler import DbHandler
 from schema import schema
 
@@ -26,6 +26,22 @@ def checkUser():
     return userID   
     
 
+def deleteStudySession(ctx, param, value):
+    if not value or ctx.resilient_parsing:
+        return
+    
+    userID = checkUser()
+    crud = CrudStudy()
+    with DbHandler() as db:        
+        dbStudySession = crud.readStudySessionById(db, userID)
+        if not dbStudySession:
+            click.secho("Study session not found", fg="red")
+            ctx.abort()
+        crud.deleteStudySession(db, dbStudySession)
+        click.secho("Study session delete", fg="green")
+    ctx.exit()
+
+
 def createStudySession(ctx, param, value):
     if not value or ctx.resilient_parsing:
         return
@@ -39,7 +55,9 @@ def createStudySession(ctx, param, value):
             click.secho("Course not found", fg="red")
             ctx.abort()
         courseID = dbCourse.id 
-        dbSubscription = crud.readSubscriptionByCourse(db, userID, courseID)
+    crud = CrudSubscription()
+    with DbHandler() as db:        
+        dbSubscription = crud.readSubscriptionByUserAndCourse(db, userID, courseID)
         if not dbSubscription:
             click.secho("Subscription not found", fg="red")
             ctx.abort()
@@ -64,30 +82,26 @@ def createStudySession(ctx, param, value):
     ctx.exit()
 
 
-
-def getReport(ctx, param, value):
+@click.pass_context
+def readReport(ctx, param, value):
     if not value or ctx.resilient_parsing:
         return
 
+    print(ctx.obj)
     userID = checkUser()
-    course = click.prompt("Course", type=str)
-    crud = CrudCourse()
-    with DbHandler() as db:
-        dbCourse = crud.readCourseByName(db, course)
-        if not dbCourse:    
-            click.secho("Course not found", fg="red")
+    crud = CrudSubscription()
+    with DbHandler() as db: 
+        dbSubscriptions = crud.readSubscriptionByUser(db, userID)
+        if not dbSubscriptions:
+            click.secho("Subscriptions not found", fg="red")
             click.echo("Abort!")
             exit()
-        courseID = dbCourse.id 
-        dbSubscription = crud.readSubscriptionByCourse(db, userID, courseID)
-        if not dbSubscription:
-            click.secho("Subscription not found", fg="red")
-            click.echo("Abort!")
-            exit()
-        subscriptionID = dbSubscription.id
+        subscriptionIDs = []
+        for subscription in dbSubscriptions:
+            subscriptionIDs.append(subscription.id)
     crud = CrudStudy()
     with DbHandler() as db:
-        dbStudySessions = crud.readStudySessions(db, subscriptionID)
+        dbStudySessions = crud.readStudySessions(db, subscriptionIDs)
         listStudySessions = []
         for studySession in dbStudySessions:
             listStudySessions.append(
@@ -102,21 +116,22 @@ def getReport(ctx, param, value):
     df.course = df.course.apply(lambda x: x.title())
     df = df.reindex(columns=["course", "time_session"])
     df = df.groupby(["course"], as_index=False).sum().astype(str)
-    df.rename(str.title, axis="columns", inplace=True)    
+    df.rename(str.title, axis="columns", inplace=True) 
     click.echo(tabulate(df, headers="keys", showindex=False
                         ,tablefmt="simple"))
     ctx.exit()
 
 
 @main.command()
-@click.option("--report", is_flag=True, callback=getReport, 
+@click.option("--test", type=str, default="test")
+@click.option("--report", is_flag=True, callback=readReport, 
                 expose_value=False)
 @click.option("--new", is_flag=True, callback=createStudySession, 
                 expose_value=False)
-# @click.option("--delete", is_flag=True, callback=deleteStudySession, 
-#                 expose_value=False)
-def study():
-
+@click.option("--delete", is_flag=True, callback=deleteStudySession, 
+                expose_value=False)
+@click.pass_context
+def study(ctx, test):
     userID = checkUser()
     course = click.prompt("Course", type=str)
     crud = CrudCourse()
@@ -126,8 +141,10 @@ def study():
             click.secho("Course not found", fg="red")
             click.echo("Abort!")
             exit()
-        courseID = dbCourse.id 
-        dbSubscription = crud.readSubscriptionByCourse(db, userID, courseID)
+        courseID = dbCourse.id
+    crud = CrudSubscription()
+    with DbHandler() as db: 
+        dbSubscription = crud.readSubscriptionByUserAndCourse(db, userID, courseID)
         if not dbSubscription:
             click.secho("Subscription not found", fg="red")
             click.echo("Abort!")
@@ -135,7 +152,7 @@ def study():
         subscriptionID = dbSubscription.id
     crud = CrudStudy()
     with DbHandler() as db:
-        dbStudySessions = crud.readStudySessions(db, subscriptionID)
+        dbStudySessions = crud.readStudySessions(db, [subscriptionID])
         listStudySessions = []
         for studySession in dbStudySessions:
             listStudySessions.append(
@@ -155,7 +172,6 @@ def study():
     df.rename(str.title, axis="columns", inplace=True)    
     click.echo(tabulate(df, headers="keys", showindex=False
                         ,tablefmt="simple"))
-
 
 
 
@@ -256,7 +272,7 @@ def createCourse(ctx, param, value):
             ctx.abort()
         categoryID = dbCategory.id
     
-    payload = schema.CourseToDb(
+    payload = schema.BaseCourse(
         name = course,
         category_id = categoryID,
     )
@@ -280,7 +296,7 @@ def createCourse(ctx, param, value):
             subscribed_on = subscribed,
             conclusion_on = conclusion
         )
-        crud = CrudCourse()
+        crud = CrudSubscription()
         with DbHandler() as db:
             crud.createSubscription(db, payload)
             click.secho("User subscribed", fg="green")
@@ -301,7 +317,9 @@ def deleteCourse(ctx, param, value):
             click.secho("Course not found", fg="red")
             ctx.abort()
         courseID = dbCourse.id
-        dbSubscriptions = crud.readCourseSubscription(db, courseID)
+    crud = CrudSubscription()
+    with DbHandler() as db:
+        dbSubscriptions = crud.readSubscriptionByCourse(db, courseID)
         if dbSubscriptions:
             click.secho("Course has users subscribed", fg="red")
             ctx.abort()
@@ -361,9 +379,9 @@ def createSubscription(ctx, param, value):
         course_id = courseID,
         user_id = userID,
         subscribed_on = subscribed,
-        conclusion_on = conclusion
+        conclusion_on = conclusion,
     )
-    crud = CrudCourse()
+    crud = CrudSubscription()
     with DbHandler() as db:
         crud.createSubscription(db, payload)
         click.secho("User subscribed", fg="green")
@@ -384,16 +402,24 @@ def deleteSubscription(ctx, param, value):
             click.secho("Course not found", fg="red")
             ctx.abort()
         courseID = dbCourse.id
-        
-    if click.confirm('Are you sure?', abort=True):
-        crud = CrudCourse()
+        crud = CrudSubscription()
         with DbHandler() as db:
-            dbSubscription = crud.readSubscriptionByCourse(db, userID, courseID)
+            dbSubscription = crud.readSubscriptionByUserAndCourse(db, userID,
+                                                                    courseID)
             if not dbSubscription:
                 click.secho("User not subscribed in this course", fg="red")
                 ctx.abort()
-            crud.deleteSubscription(db, dbSubscription)
-            click.secho("Subscription deleted", fg="green")
+            subscriptionID = dbSubscription.id
+        crud = CrudStudy()
+        with DbHandler() as db:
+            dbStudySessions = crud.readStudySessionsBySubscriptionId(db,
+                                                                subscriptionID)
+            if dbStudySessions:
+                click.secho("Subscription has study sessions ", fg="red")
+                ctx.abort()
+                if click.confirm('Are you sure?', abort=True):
+                    crud.deleteSubscription(db, dbSubscription)
+                    click.secho("Subscription deleted", fg="green")
     ctx.exit()
 
 
@@ -405,7 +431,7 @@ def deleteSubscription(ctx, param, value):
 def subscription():
 
     userID = checkUser()
-    crud = CrudCourse()
+    crud = CrudSubscription()
     with DbHandler() as db:
         dbCourses = crud.readSubscriptions(db, userID)
         listCourses = []
@@ -473,7 +499,9 @@ def deleteUser(ctx, param, value):
         if userID == userCurrentSession:
             click.secho("User has an active session", fg="red")
             ctx.abort()
-        dbSubscriptions = crud.readCoursesByUser(db, userID)
+    crud = CrudSubscription()
+    with DbHandler() as db:
+        dbSubscriptions = crud.readSubscriptionByUser(db, userID)
         if dbSubscriptions:
             click.secho("User has courses subscribed", fg="red")
             ctx.abort()

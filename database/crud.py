@@ -10,9 +10,18 @@ Base.metadata.create_all(engine)
 
 class CrudStudy:
 
-    def readStudySessions(self, db: Session, id: int):
+    def readStudySessions(self, db: Session, ids: list):
+        return db.query(StudySession).\
+            filter(StudySession.subscription_id.in_(ids)).all()
+
+    
+    def readStudySessionsBySubscriptionId(self, db: Session, id: int):
         return db.query(StudySession).\
             filter(StudySession.subscription_id==id).all()
+
+
+    def readStudySessionById(self, db: Session, id: int):
+        return db.query(StudySession).get(id).all()
 
 
     def createStudySession(self, db: Session, payload: schema.StudySession):
@@ -25,49 +34,34 @@ class CrudStudy:
         db.commit()
 
 
-class CrudCourse:
-
-    def readCourseByID(self, db: Session, id: int):
-        return db.query(Courses).get(id)
-        
-
-    def readCourseByName(self, db: Session, name: str):
-        return db.query(Courses).\
-            filter(Courses.name==name.upper()).first()
-
-
-    def readCourses(self, db: Session):
-        return db.query(Courses).all()
-
-
-    def createCourse(self, db: Session, payload: schema.CourseToDb):
-        dbCourse = Courses(
-            name = payload.name.upper(),
-            category_id = payload.category_id,
-        )
-        db.add(dbCourse)
-        db.commit()
-
-
-    def deleteCourse(self, db: Session, payload: Courses):
+    def deleteStudySession(self, db: Session, payload: StudySession):
         db.delete(payload)
         db.commit()
 
 
+
+class CrudSubscription:
+    
     def readSubscriptions(self, db: Session, user_id: int):
         return db.query(Subscriptions).\
             filter(Subscriptions.user_id==user_id).all()
 
-
-    def readSubscriptionByCourse(self, db: Session, user_id: int, course_id: int):
+    
+    def readSubscriptionByUserAndCourse(self, db: Session, user_id: int,
+                                course_id: int):
         return db.query(Subscriptions).\
             filter(and_(Subscriptions.user_id==user_id,
                         Subscriptions.course_id==course_id)).first()
-    
 
-    def readCourseSubscription(self, db: Session, course_id: int):
+
+    def readSubscriptionByCourse(self, db: Session, course_id: int):
         return db.query(Subscriptions).\
-            filter(Subscriptions.course_id==course_id).all()
+            filter(Subscriptions.course_id==course_id).all()         
+
+
+    def readSubscriptionByUser(self, db: Session, user_id: int):
+        return db.query(Subscriptions).\
+            filter(Subscriptions.user_id==user_id).all()
 
 
     def createSubscription(self, db: Session, payload: schema.BaseSubscription):
@@ -85,6 +79,35 @@ class CrudCourse:
         db.delete(payload)
         db.commit()
 
+
+
+class CrudCourse:
+
+    def readCourseByID(self, db: Session, id: int):
+        return db.query(Courses).get(id)
+        
+
+    def readCourseByName(self, db: Session, name: str):
+        return db.query(Courses).\
+            filter(Courses.name==name.upper()).first()
+
+
+    def readCourses(self, db: Session):
+        return db.query(Courses).all()
+
+
+    def createCourse(self, db: Session, payload: schema.BaseCourse):
+        dbCourse = Courses(
+            name = payload.name.upper(),
+            category_id = payload.category_id,
+        )
+        db.add(dbCourse)
+        db.commit()
+
+
+    def deleteCourse(self, db: Session, payload: Courses):
+        db.delete(payload)
+        db.commit()
 
 
 class CrudCategory:
@@ -120,7 +143,6 @@ class CrudCategory:
         db.commit()
 
 
-
 class CrudUser:
 
     def readUserByID(self, db: Session, id: int):
@@ -130,11 +152,6 @@ class CrudUser:
     def readUserByName(self, db: Session, email: str):
         return db.query(Users).\
             filter(Users.email==email.upper()).first()
-
-
-    def readCoursesByUser(self, db: Session, id: int):
-        return db.query(Subscriptions).\
-            filter(Subscriptions.user_id==id).all()
 
 
     def readUsers(self, db: Session):
@@ -152,6 +169,7 @@ class CrudUser:
     def deleteUser(self, db: Session, payload: Users):
         db.delete(payload)
         db.commit()
+
 
 
 class CrudSession:

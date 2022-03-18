@@ -28,7 +28,7 @@ class Course(BaseModel):
         orm_mode = True
 
 
-class CourseToDb(BaseModel):
+class BaseCourse(BaseModel):
     id: Optional[int]
     name: Optional[str]
     category_id: Optional[int]
