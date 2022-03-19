@@ -1,4 +1,3 @@
-from email.policy import default
 import click
 import pandas as pd
 from tabulate import tabulate
@@ -63,11 +62,13 @@ def createStudySession(ctx, param, value):
             ctx.abort()
         subscriptionID = dbSubscription.id
     startSession = datetime.now()
-    click.secho(f"{startSession}: ", fg="blue", nl=None)
+    click.secho(f"{startSession.strftime('%d-%m-%y %H:%M:%S')}: ",
+                fg="blue", nl=None)
     click.echo("Session started")
     click.pause()
     endSession = datetime.now()
-    click.secho(f"{endSession}: ", fg="blue", nl=None)
+    click.secho(f"{endSession.strftime('%d-%m-%y %H:%M:%S')}: ",
+                fg="blue", nl=None)
     click.echo("Session closed")
 
     payload = schema.BaseStudySession(
@@ -182,7 +183,6 @@ def study():
     df.rename(str.title, axis="columns", inplace=True)    
     click.echo(tabulate(df, headers="keys", showindex=False
                         ,tablefmt="simple"))
-
 
 
 def createCategory(ctx, param, value):
