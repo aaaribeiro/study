@@ -82,12 +82,10 @@ def createStudySession(ctx, param, value):
     ctx.exit()
 
 
-@click.pass_context
 def readReport(ctx, param, value):
     if not value or ctx.resilient_parsing:
         return
 
-    print(ctx.obj)
     userID = checkUser()
     crud = CrudSubscription()
     with DbHandler() as db: 
@@ -115,7 +113,11 @@ def readReport(ctx, param, value):
     df.rename(columns={"subscription.course.name": "course"}, inplace=True)
     df.course = df.course.apply(lambda x: x.title())
     df = df.reindex(columns=["course", "time_session"])
-    df = df.groupby(["course"], as_index=False).sum().astype(str)
+    df = df.groupby(["course"], as_index=False).sum()#.astype(str)
+    df.time_session = df.time_session.apply(
+        lambda x: datetime.utcfromtimestamp(
+            x.total_seconds()).strftime("%H:%M:%S")
+    )
     df.rename(str.title, axis="columns", inplace=True) 
     click.echo(tabulate(df, headers="keys", showindex=False
                         ,tablefmt="simple"))
@@ -123,15 +125,13 @@ def readReport(ctx, param, value):
 
 
 @main.command()
-@click.option("--test", type=str, default="test")
 @click.option("--report", is_flag=True, callback=readReport, 
                 expose_value=False)
 @click.option("--new", is_flag=True, callback=createStudySession, 
                 expose_value=False)
 @click.option("--delete", is_flag=True, callback=deleteStudySession, 
                 expose_value=False)
-@click.pass_context
-def study(ctx, test):
+def study():
     userID = checkUser()
     course = click.prompt("Course", type=str)
     crud = CrudCourse()
@@ -167,6 +167,16 @@ def study(ctx, test):
         "subscription.user.email": "user"}, inplace=True)
     df.course = df.course.apply(lambda x: x.title())
     df.user = df.user.apply(lambda x: x.lower())
+    df.start_session = df.start_session.apply(
+        lambda x: x.strftime("%d-%m-%y %H:%M:%S")
+    )
+    df.end_session = df.end_session.apply(
+        lambda x: x.strftime("%d-%m-%y %H:%M:%S")
+    )
+    df.time_session = df.time_session.apply(
+        lambda x: datetime.utcfromtimestamp(
+            x.total_seconds()).strftime("%H:%M:%S")
+    )
     df = df.reindex(columns=["id", "user", "course", "start_session",
         "end_session", "time_session"])
     df.rename(str.title, axis="columns", inplace=True)    
